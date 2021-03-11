@@ -4,9 +4,41 @@ using UnityEngine;
 
 public class SimonScript : MonoBehaviour
 {
+    /*
+    Simon Game - Griffin Atkinson - 11/03/2021
+
+    Simon game summary
+    game consists of the game displaying an increasingly long sequence of buttons(4 possibilities) that the user then attmpts to recreate during their turn
+    if the user is successful, the button sequence randomly adds another button to the end of the sequence
+    game continues until the user fails to recreate the sequence.
+
+
+    basic flow -
+    1 user clicks start    (game randomly selects 1 button to begin sequence)
+
+    2 game starts playing button-sequence + adds a random button to the end of the sequence 
+    2.5 button sequence ends
+
+    3 game starts user turn (user tries to click buttons in the order of the button-sequence)
+    4 user clicks button
+        if button click is correct
+            - if click is the last in sequence -> go to 2
+            - if click is not the last in sequence -> go back to 4
+        if button click is incorrect
+            - game ends -> score is recorded
+    */
+
+
 
     //bool tracks if game is currently active
     private bool gameStarted = false;
+
+    //bool tracks highest score achieved
+    private int highscore = 0;
+
+    //textmeshes for displaying score on GUI
+    public Transform highscoreDisplayText;
+    public Transform scoreDisplayText;
 
     //each button's sprite renderers
     private SpriteRenderer r;
@@ -14,20 +46,19 @@ public class SimonScript : MonoBehaviour
     private SpriteRenderer b;
     private SpriteRenderer g;
 
+    //manually set each button's default and highlighted colours
+    public Color defaultRed; public Color highlightedRed;
+    public Color defaultGreen; public Color highlightedGreen;
+    public Color defaultYellow; public Color highlightedYellow;
+    public Color defaultBlue; public Color highlightedBlue;
+
+    //each button's default and highlighted colours in usable arrays
+    private Color[] defaultColoursArr;
+    private Color[] highlightedColoursArr;
+
+
     //audio source attached to main object
     private AudioSource audioPlayer;
-
-    //score arr keeps track of the sequence of buttons 
-    private int[] scoreArr;
-    private int clickedBtn;
-    
-    //array of all 4 button objects (doesnt include start button)
-    private GameObject[] buttonsArr;
-
-
-    //manually set the start button var
-    public GameObject beeper; //remove
-    public GameObject startBtn;
 
     //manually set each audio clip var
     public AudioClip rSound;
@@ -37,26 +68,50 @@ public class SimonScript : MonoBehaviour
     public AudioClip correctSound;
     public AudioClip incorrectSound;
 
+    private AudioClip[] buttonSoundsArr;
+
+    //score arr keeps track of the sequence of buttons 
+    private List<int> buttonSequence = new List<int> (0);
+    private int clickedBtn;
+
+
+    //array of all 4 button objects (doesnt include start button)
+    private GameObject[] buttonsArr;
+
+    //manually set the start button var
+    public GameObject startBtn;
+
+
 
     // Start is called before the first frame update -
     void Start()
     {
-        // automatically gathering sprite and audio renderers
-        r = transform.Find("red").GetComponent<SpriteRenderer>();
-        y = transform.Find("yellow").GetComponent<SpriteRenderer>();
-        b = transform.Find("blue").GetComponent<SpriteRenderer>();
-        g = transform.Find("green").GetComponent<SpriteRenderer>();
+        //setting arrays for accessing each button's colours
+        defaultColoursArr = new Color[] { defaultRed, defaultGreen, defaultYellow, defaultBlue };
+        highlightedColoursArr = new Color[] { highlightedGreen, highlightedGreen, highlightedGreen, highlightedGreen };
 
+        //setting array for accessing each button's sound clips
+        buttonSoundsArr = new AudioClip[] { rSound, gSound, ySound, bSound };
+
+        //gathering sound player and setting it up
         audioPlayer = GetComponent<AudioSource>();
+        audioPlayer.time = .2f;
 
-        
+        //gathering all the coloured buttons
+        buttonsArr = new GameObject[] {transform.Find("redBtn").gameObject, transform.Find("greenBtn").gameObject, transform.Find("yellowBtn").gameObject, transform.Find("blueBtn").gameObject};
+
+        //setting each button to it's default colour
+        for (int i = 0; i < buttonsArr.Length; i++)
+        {
+            buttonsArr[i].GetComponent<SpriteRenderer>().color = defaultColoursArr[i];
+        } 
     }
 
     // Update is called once per frame
     void Update()
     {
         //if start button is clicked
-            if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0))
         {
             if (!gameStarted)
             {
@@ -68,163 +123,163 @@ public class SimonScript : MonoBehaviour
             }
         }
     }
-    private void StartGame()
-    {
-        gameStarted = true;
-        startBtn.SetActive(false);
 
-        intArr = new int[0];
-        AddToSequenceAndStart();
+    void StartGame() //called when start button is clicked
+    {
+        //setting game started var and disabling start button
+        gameStarted = true;
+        //startBtn.SetActive(false);
+
+        //clearing old sequence
+        buttonSequence.Clear();
+
+        //creating new sequence
+        AddToSequence();
+
+        //playing the button sequence
+        StartCoroutine(PlaySequence());
+
+
     }
-    private void EndGame()
+
+    void EndGame() //called when user fails to repeat sequence
     {
         StopAllCoroutines();
+
+        //setting game started var and enabling start button
         gameStarted = false;
         startBtn.SetActive(true);
 
-        intArr = new int[0];
-        AddToSequenceAndStart();
+        //clearing old sequence
+        buttonSequence.Clear();
     }
-    private void AddToSequenceAndStart()
+
+    void AddToSequence()
     {
-        StopCoroutine(PlaySequence());
-        int[] tempArr = new int[intArr.Length + 1];
-        for (int i = 0; i < intArr.Length; i++)
-        {
-            tempArr[i] = intArr[i];
-        }
-        tempArr[intArr.Length ] = Random.Range(1, 5);
-        intArr = tempArr;
+        //adding a random button to the end of the sequence
+        
+        buttonSequence.Add(Random.Range(1, 5));
+        Debug.Log("new sequence button: " + buttonSequence[buttonSequence.Count-1]);
+
+    }
+
+    void WinRound()
+    {
+        //called when all buttons in sequence were correctly guessed by player
+
+        //update score display
+        UpdateScore();
+
+        //add one more to the sequence and start 
+        AddToSequence();
         StartCoroutine(PlaySequence());
     }
+
+    void UpdateScore() {
+        //displaying current score
+        scoreDisplayText.GetComponent<TextMesh>().text = buttonSequence.Count.ToString();
+
+        //checking if current score is higher than highscore
+        if (highscore < buttonSequence.Count){
+            highscore = buttonSequence.Count;
+            highscoreDisplayText.GetComponent<TextMesh>().text = highscore.ToString();
+        }
+    }
+
     IEnumerator PlaySequence()
     {
-        for (int i = 0; i < intArr.Length; i++)
-        {
-            switch (intArr[i])
-            {
-                case 1:
-                    beeper.transform.position = r.transform.position;
-                    audioPlayer.clip = rSound;
-                    audioPlayer.time = 2f;
-                    audioPlayer.Play();
-                    break;
-                case 2:
-                    beeper.transform.position = g.transform.position;
-                    audioPlayer.clip = gSound;
-                    audioPlayer.time = 2f;
-                    audioPlayer.Play();
-                    break;
-                case 3:
-                    beeper.transform.position = y.transform.position;
-                    audioPlayer.clip = ySound;
-                    audioPlayer.time = 2f;
-                    audioPlayer.Play();
-                    break;
-                case 4:
-                    beeper.transform.position = b.transform.position;
-                    audioPlayer.clip = bSound;
-                    audioPlayer.time = 2f;
-                    audioPlayer.Play();
-                    break;
-            }
-            beeper.SetActive(true);
-            yield return new WaitForSeconds(1);
-            beeper.SetActive(false);
-        }
-        StartCoroutine(PlayerTest());
-        yield break;
-    }
-    IEnumerator PlayerTest()
-    {
-        int count = 0;
-        while (count < intArr.Length)
+        //enumerator runs through each value in the button sequence and displays it to the player -> lights it up and plays a sound accordingly
+        for (int i = 0; i < buttonSequence.Count; i++)
+        {//loops through sequence and selects individual button in each iteration "i"
 
+            //setting audio player clip to coresponding button's sound clip
+            audioPlayer.clip = buttonSoundsArr[buttonSequence[i]];
+            audioPlayer.Play();
+
+            //setting buttons colour to highlighted, waiting a moment, then changing its colour back to default
+            buttonsArr[i].GetComponent<SpriteRenderer>().color = highlightedColoursArr[buttonSequence[i]];
+            yield return new WaitForSeconds(.5f);
+            buttonsArr[i].GetComponent<SpriteRenderer>().color = defaultColoursArr[buttonSequence[i]];
+        }
+
+        //when done playing sequence, start player's turn
+        StartCoroutine(PlayerTurn());
+    }
+    IEnumerator PlayerTurn()
+    {
+        int count = 0; // counts how many successful clicks user has gotten so far this turn
+        while (count < buttonSequence.Count) //while there is still more buttons in the sequence
         {
             Debug.Log("count " + count);
+            //wait for the user to click
             yield return new WaitUntil(() => Input.GetMouseButtonDown(0));
-            SpriteRenderer btn = GetClosestObject("btn", new Vector2(Input.mousePosition.x / 100 - 5, Input.mousePosition.y / 100 - 5)).GetComponent<SpriteRenderer>();
-            if (btn == r)
-            {
-                clickedBtn = 1;
-                beeper.transform.position = r.transform.position;
-                audioPlayer.clip = rSound;
-                audioPlayer.time = 2f;
-            }
-            else  if (btn == g)
-            {
-                clickedBtn = 2;
-                beeper.transform.position = g.transform.position;
-                audioPlayer.clip = gSound;
-                audioPlayer.time = 2f;
-            }
-            else if (btn == y)
-            {
-                clickedBtn = 3;
-                beeper.transform.position = y.transform.position;
-                audioPlayer.clip = ySound;
-                audioPlayer.time = 2f;
-            }
-            else  if (btn == b)
-            {
-                clickedBtn = 4;
-                beeper.transform.position = b.transform.position;
-                audioPlayer.clip = bSound;
-                audioPlayer.time = 2f;
-            }
 
-            if (clickedBtn == intArr[count])//correct guess
+            //get the button thats closest to mouse click
+            int clickedBtn = GetClosestButtonIndex(new Vector2((Input.mousePosition.x -512)/ 1024, (Input.mousePosition.y - 384)/ 768));
+
+            //setting audio player clip to selected button's sound clip
+            audioPlayer.clip = buttonSoundsArr[clickedBtn];
+            audioPlayer.Play();
+
+            if (clickedBtn == buttonSequence[count])// clicked button = current button in sequence -> correct guess
             {
-                if(count+1 == intArr.Length)//win round
+                //setting selected button's colour to highlighted, waiting a moment, then changing its colour back to default
+                buttonsArr[clickedBtn].GetComponent<SpriteRenderer>().color = highlightedColoursArr[clickedBtn];
+                yield return new WaitForSeconds(.5f);
+                buttonsArr[clickedBtn].GetComponent<SpriteRenderer>().color = defaultColoursArr[clickedBtn];
+
+                if (count + 1 == buttonSequence.Count)// correct guess + no more in sequence -> win round
                 {
-                    audioPlayer.Play();
-                    beeper.SetActive(true);
-                    yield return new WaitForSeconds(1);
-                    beeper.SetActive(false);
+                    //setting audio player clip to correct guess/win round sound
                     audioPlayer.clip = correctSound;
-                    audioPlayer.time = 0f;
                     audioPlayer.Play();
-                    yield return new WaitForSeconds(0.5f);
-                    AddToSequenceAndStart();
+
+                    //in future make center button light up
+                    yield return new WaitForSeconds(1);
+
+                    //call win round function
+                    WinRound();
                     yield break;
                 }
-                else//correct guess but not round
+                else// correct guess + more in sequence -> continue round
                 {
-                    audioPlayer.Play();
-                    beeper.SetActive(true);
-                    yield return new WaitForSeconds(1);
-                    beeper.SetActive(false);
+                    //add one to the successful clicks count
                     count++;
                 }
             }
-            else//fail game
+            else// clicked button = NOT current button in sequence -> game failed!
             {
                 audioPlayer.clip = incorrectSound;
-                audioPlayer.time = 0f;
                 audioPlayer.Play();
                 yield return new WaitForSeconds(0.5f);
                 EndGame();
                 yield break;
             }
         }
-       
-    }     
-    private GameObject GetClosestObject(string tag, Vector2 pos)
-    {//no calls but is a useful function
-     //method that returns the closest gameobject to a position
+
+    }
+    private int GetClosestButtonIndex(Vector2 pos)
+    {//method that returns the closest button to a position
 
         //gathers all 
-        GameObject[] objectsWithTag = GameObject.FindGameObjectsWithTag(tag);
-        GameObject closestObject = objectsWithTag[0];
-        for (int i = 0; i < objectsWithTag.Length; i++)
+        int closestButtonIndex = 0;
+        for (int i = 0; i < buttonsArr.Length; i++)
         {
             //compares distances and switches for the shortest distance
-            if (Vector2.Distance(pos, objectsWithTag[i].transform.position) <= Vector2.Distance(pos, closestObject.transform.position))
+            if (Vector2.Distance(pos, buttonsArr[i].transform.position) <= Vector2.Distance(pos, buttonsArr[closestButtonIndex].transform.position))
             {
-                closestObject = objectsWithTag[i];
+                closestButtonIndex = i;
             }
+
         }
-        return closestObject;
+        //return the stored button index
+        Debug.Log("user clicked");
+        Debug.Log(pos);
+        Debug.Log(closestButtonIndex);
+        Debug.Log(buttonsArr[closestButtonIndex].transform.position);
+        startBtn.transform.position = new Vector3(pos.x,pos.y,10);
+        return closestButtonIndex;
+
     }
 
 }
