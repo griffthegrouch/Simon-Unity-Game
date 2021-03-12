@@ -37,8 +37,8 @@ public class SimonScript : MonoBehaviour
     private int highscore = 0;
 
     //textmeshes for displaying score on GUI
-    public Transform highscoreDisplayText;
-    public Transform scoreDisplayText;
+    public GameObject highscoreDisplayText;
+    public GameObject scoreDisplayText;
 
     //each button's sprite renderers
     private SpriteRenderer r;
@@ -71,7 +71,7 @@ public class SimonScript : MonoBehaviour
     private AudioClip[] buttonSoundsArr;
 
     //score arr keeps track of the sequence of buttons 
-    private List<int> buttonSequence = new List<int> (0);
+    private List<int> buttonSequence = new List<int>(0);
     private int clickedBtn;
 
 
@@ -88,23 +88,22 @@ public class SimonScript : MonoBehaviour
     {
         //setting arrays for accessing each button's colours
         defaultColoursArr = new Color[] { defaultRed, defaultGreen, defaultYellow, defaultBlue };
-        highlightedColoursArr = new Color[] { highlightedGreen, highlightedGreen, highlightedGreen, highlightedGreen };
+        highlightedColoursArr = new Color[] { highlightedRed, highlightedGreen, highlightedYellow, highlightedBlue };
 
         //setting array for accessing each button's sound clips
         buttonSoundsArr = new AudioClip[] { rSound, gSound, ySound, bSound };
 
         //gathering sound player and setting it up
         audioPlayer = GetComponent<AudioSource>();
-        audioPlayer.time = .2f;
 
         //gathering all the coloured buttons
-        buttonsArr = new GameObject[] {transform.Find("redBtn").gameObject, transform.Find("greenBtn").gameObject, transform.Find("yellowBtn").gameObject, transform.Find("blueBtn").gameObject};
+        buttonsArr = new GameObject[] { transform.Find("redBtn").gameObject, transform.Find("greenBtn").gameObject, transform.Find("blueBtn").gameObject, transform.Find("yellowBtn").gameObject };
 
         //setting each button to it's default colour
         for (int i = 0; i < buttonsArr.Length; i++)
         {
             buttonsArr[i].GetComponent<SpriteRenderer>().color = defaultColoursArr[i];
-        } 
+        }
     }
 
     // Update is called once per frame
@@ -126,9 +125,11 @@ public class SimonScript : MonoBehaviour
 
     void StartGame() //called when start button is clicked
     {
+        Debug.Log("new game started");
+
         //setting game started var and disabling start button
         gameStarted = true;
-        //startBtn.SetActive(false);
+        startBtn.SetActive(false);
 
         //clearing old sequence
         buttonSequence.Clear();
@@ -144,6 +145,7 @@ public class SimonScript : MonoBehaviour
 
     void EndGame() //called when user fails to repeat sequence
     {
+        Debug.Log("game ended");
         StopAllCoroutines();
 
         //setting game started var and enabling start button
@@ -157,14 +159,22 @@ public class SimonScript : MonoBehaviour
     void AddToSequence()
     {
         //adding a random button to the end of the sequence
-        
-        buttonSequence.Add(Random.Range(1, 5));
-        Debug.Log("new sequence button: " + buttonSequence[buttonSequence.Count-1]);
 
+        buttonSequence.Add(Random.Range(0, 4));
+
+
+        string s = "sequence = ";
+        foreach (int i in buttonSequence)
+        {
+            s += i + ",  ";
+        }
+        Debug.Log(s);
     }
 
     void WinRound()
     {
+        Debug.Log("round won");
+
         //called when all buttons in sequence were correctly guessed by player
 
         //update score display
@@ -175,12 +185,14 @@ public class SimonScript : MonoBehaviour
         StartCoroutine(PlaySequence());
     }
 
-    void UpdateScore() {
+    void UpdateScore()
+    {
         //displaying current score
         scoreDisplayText.GetComponent<TextMesh>().text = buttonSequence.Count.ToString();
 
         //checking if current score is higher than highscore
-        if (highscore < buttonSequence.Count){
+        if (highscore < buttonSequence.Count)
+        {
             highscore = buttonSequence.Count;
             highscoreDisplayText.GetComponent<TextMesh>().text = highscore.ToString();
         }
@@ -191,22 +203,33 @@ public class SimonScript : MonoBehaviour
         //enumerator runs through each value in the button sequence and displays it to the player -> lights it up and plays a sound accordingly
         for (int i = 0; i < buttonSequence.Count; i++)
         {//loops through sequence and selects individual button in each iteration "i"
-
-            //setting audio player clip to coresponding button's sound clip
-            audioPlayer.clip = buttonSoundsArr[buttonSequence[i]];
-            audioPlayer.Play();
-
-            //setting buttons colour to highlighted, waiting a moment, then changing its colour back to default
-            buttonsArr[i].GetComponent<SpriteRenderer>().color = highlightedColoursArr[buttonSequence[i]];
+            //StopCoroutine(ActivateButton(buttonSequence[i]));
+            StartCoroutine(ActivateButton(buttonSequence[i]));
             yield return new WaitForSeconds(.5f);
-            buttonsArr[i].GetComponent<SpriteRenderer>().color = defaultColoursArr[buttonSequence[i]];
         }
 
         //when done playing sequence, start player's turn
         StartCoroutine(PlayerTurn());
     }
+
+    IEnumerator ActivateButton(int i)
+    {
+        //setting audio player clip to coresponding button's sound clip
+        audioPlayer.Stop();
+        audioPlayer.time = 0f;
+        audioPlayer.clip = buttonSoundsArr[i];
+        audioPlayer.Play();
+        
+
+        //setting buttons colour to highlighted, waiting a moment, then changing its colour back to default
+        buttonsArr[i].GetComponent<SpriteRenderer>().color = highlightedColoursArr[i];
+        yield return new WaitForSeconds(.5f);
+        audioPlayer.Stop();
+        buttonsArr[i].GetComponent<SpriteRenderer>().color = defaultColoursArr[i];
+    }
     IEnumerator PlayerTurn()
     {
+        Debug.Log("player turn start");
         int count = 0; // counts how many successful clicks user has gotten so far this turn
         while (count < buttonSequence.Count) //while there is still more buttons in the sequence
         {
@@ -215,22 +238,23 @@ public class SimonScript : MonoBehaviour
             yield return new WaitUntil(() => Input.GetMouseButtonDown(0));
 
             //get the button thats closest to mouse click
-            int clickedBtn = GetClosestButtonIndex(new Vector2((Input.mousePosition.x -512)/ 1024, (Input.mousePosition.y - 384)/ 768));
+            int clickedBtn = GetClosestButtonIndex(new Vector2((Input.mousePosition.x - 512) / 1024, (Input.mousePosition.y - 384) / 768));
 
-            //setting audio player clip to selected button's sound clip
-            audioPlayer.clip = buttonSoundsArr[clickedBtn];
-            audioPlayer.Play();
-
+            Debug.Log("clicked button :" + clickedBtn + "    actual button:" + buttonSequence[count]);
             if (clickedBtn == buttonSequence[count])// clicked button = current button in sequence -> correct guess
             {
-                //setting selected button's colour to highlighted, waiting a moment, then changing its colour back to default
-                buttonsArr[clickedBtn].GetComponent<SpriteRenderer>().color = highlightedColoursArr[clickedBtn];
-                yield return new WaitForSeconds(.5f);
-                buttonsArr[clickedBtn].GetComponent<SpriteRenderer>().color = defaultColoursArr[clickedBtn];
+                //activate clicked button
+                StartCoroutine(ActivateButton(buttonSequence[count]));
 
+                //start a slight delay before allowing player to click another button
+                yield return new WaitForSeconds(.1f);
+                
                 if (count + 1 == buttonSequence.Count)// correct guess + no more in sequence -> win round
                 {
                     //setting audio player clip to correct guess/win round sound
+                    yield return new WaitForSeconds(.4f);
+                    audioPlayer.Stop();
+                    audioPlayer.time = 0f;
                     audioPlayer.clip = correctSound;
                     audioPlayer.Play();
 
@@ -273,11 +297,7 @@ public class SimonScript : MonoBehaviour
 
         }
         //return the stored button index
-        Debug.Log("user clicked");
-        Debug.Log(pos);
-        Debug.Log(closestButtonIndex);
-        Debug.Log(buttonsArr[closestButtonIndex].transform.position);
-        startBtn.transform.position = new Vector3(pos.x,pos.y,10);
+        //startBtn.transform.position = new Vector3(pos.x,pos.y,10);
         return closestButtonIndex;
 
     }
